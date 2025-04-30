@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analýza využití robotických sálů</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #fff;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        h2 {
+            font-size: 20px;
+            font-weight: 600;
+            margin: 25px 0 15px;
+        }
+        h3 {
+            font-size: 18px;
+            font-weight: 500;
+            margin: 10px 0;
+        }
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        select {
+            width: 100%;
+            max-width: 400px;
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+            margin-bottom: 24px;
+        }
+        .timeline {
+            margin-bottom: 40px;
+        }
+        .timeline-header {
+            position: relative;
+            width: 1000px;
+            margin-bottom: 5px;
+        }
+        .timeline-mark {
+            position: absolute;
+            font-size: 12px;
+            color: #666;
+        }
+        .timeline-mark::before {
+            content: '';
+            display: block;
+            height: 8px;
+            border-left: 1px solid #999;
+        }
+        .room-timeline {
+            margin-bottom: 30px;
+        }
+        .timeline-container {
+            position: relative;
+            width: 1000px;
+            height: 60px;
+            background-color: #f5f5f5;
+            border-radius: 6px;
+        }
+        .timeline-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 1px;
+            background-color: #ccc;
+        }
+        .operation {
+            position: absolute;
+            border-radius: 4px;
+        }
+        .patient-stay {
+            height: 20px;
+            top: 5px;
+            background-color: #e0e0e0;
+        }
+        .operation-time {
+            height: 20px;
+            top: 5px;
+            border: 1px solid rgba(0, 0, 0, 0.3);
+            z-index: 1;
+        }
+        .operation-time span {
+            font-size: 12px;
+            font-weight: bold;
+            padding: 0 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: block;
+        }
+        .robot-time {
+            height: 12px;
+            top: 30px;
+            background-color: #ff6666;
+            border-radius: 4px;
+        }
+        .operation-GYN {
+            background-color: #ff9ecf;
+        }
+        .operation-URO {
+            background-color: #ffdb8e;
+        }
+        .operation-CHIR {
+            background-color: #a8e6a8;
+        }
+        .operation-ORL {
+            background-color: #d7a8e6;
+        }
+        .operations-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+            overflow-x: auto;
+        }
+        .operations-table th,
+        .operations-table td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        .operations-table th {
+            background-color: #f1f1f1;
+            font-weight: 600;
+        }
+        .operations-table tr:hover {
+            background-color: #f9f9f9;
+        }
+        .legend {
+            margin: 20px 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+        }
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            display: inline-block;
+            margin-right: 8px;
+            border-radius: 2px;
+        }
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 200px;
+            font-size: 18px;
+        }
+        .error {
+            color: #dc3545;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="app">
+        <h1>Analýza využití robotických sálů</h1>
+        
+        <div id="loading" class="loading">Načítám data...</div>
+        <div id="error" class="error" style="display: none;"></div>
+        
+        <div id="content" style="display: none;">
+            <!-- Výběr data -->
+            <div>
+                <label for="date-select">Vyberte datum:</label>
+                <select id="date-select"></select>
+            </div>
+            
+            <!-- Časová osa -->
+            <div class="timeline">
+                <h2 id="timeline-title">Časová osa pro </h2>
+                
+                <!-- Časové značky -->
+                <div class="timeline-header" id="timeline-header"></div>
+                
+                <!-- Časové osy jednotlivých sálů -->
+                <div id="room-timelines"></div>
+            </div>
+            
+            <!-- Legenda -->
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #e0e0e0;"></div>
+                    <span>Pobyt pacienta na sále</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #ff9ecf;"></div>
+                    <span>GYN operace</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #ffdb8e;"></div>
+                    <span>URO operace</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #a8e6a8;"></div>
+                    <span>CHIR operace</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #d7a8e6;"></div>
+                    <span>ORL operace</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #ff6666;"></div>
+                    <span>Využití robota</span>
+                </div>
+            </div>
+            
+            <!-- Přehled operací -->
+            <div>
+                <h2>Přehled operací</h2>
+                <div style="overflow-x: auto;">
+                    <table class="operations-table">
+                        <thead>
+                            <tr>
+                                <th>Sál</th>
+                                <th>Odbornost</th>
+                                <th>Příjezd pacienta</th>
+                                <th>Začátek operace</th>
+                                <th>Konec operace</th>
+                                <th>Odjezd pacienta</th>
+                                <th>Robot začátek</th>
+                                <th>Robot konec</th>
+                                <th>Pauza před op.</th>
+                            </tr>
+                        </thead>
+                        <tbody id="operations-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Funkce pro formátování času
+        function formatTime(timeStr) {
+            if (!timeStr) return '';
+            return timeStr.padStart(5, '0');
+        }
+
+        // Funkce pro parsování času na minuty
+        function parseTime(timeStr) {
+            if (!timeStr) return null;
+            const paddedTimeStr = timeStr.padStart(5, '0');
+            const [hours, minutes] = paddedTimeStr.split(':').map(Number);
+            return hours * 60 + minutes;
+        }
+
+        // Funkce pro formátování doby trvání
+        function formatDuration(minutes) {
+            if (minutes <= 0) return '';
+            const hours = Math.floor(minutes / 60);
+            const mins = minutes % 60;
+            return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+        }
+
+        // Funkce pro analýzu CSV dat
+        function parseCSV(csvText) {
+            const lines = csvText.trim().split('\n');
+            const headers = lines[0].split(',');
+            
+            const data = [];
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i];
+                const values = line.split(',');
+                
+                if (values.length === headers.length) {
+                    const row = {};
+                    headers.forEach((header, index) => {
+                        row[header] = values[index];
+                    });
+                    data.push(row);
+                }
+            }
+            
+            return data;
+        }
+
+        // Hlavní funkce pro inicializaci aplikace
+        async function initApp() {
+            const loadingElement = document.getElementById('loading');
+            const errorElement = document.getElementById('error');
+            const contentElement = document.getElementById('content');
+            
+            try {
+                // Simulace načtení dat z CSV - v reálném prostředí byste data načetli pomocí fetch
+                // V tomto příkladu data vložíme přímo do kódu
+
+                // CSV data pro operace (začátek)
+                const operationsCSV = `Datum,Den,Sál,Odbornost,Výkon,Příjezd pacienta,Odjezd pacienta,Začátek operace,Konec operace,Robot začátek,Robot konec,Pauza před op.
+2025-03-03,Pondělí,ROBOT 1K,GYN,Nespecifikováno,07:55,09:40,08:20,09:15,08:30,09:10,00:25
+2025-03-03,Pondělí,ROBOT 1K,URO,Nespecifikováno,09:35,13:00,10:00,12:45,10:20,12:30,00:25
+2025-03-03,Pondělí,ROBOT 2K,CHIR,Nespecifikováno,07:45,13:28,08:40,13:04,,,00:55
+2025-03-03,Pondělí,ROBOT 1K,GYN,Nespecifikováno,13:00,15:15,13:25,15:05,13:45,14:30,00:25
+2025-03-04,Úterý,ROBOT 1K,URO,Nespecifikováno,07:00,12:35,08:00,12:23,08:30,10:00,01:00
+2025-03-04,Úterý,CHIR 1,CHIR,Nespecifikováno,07:45,09:32,08:40,09:25,,,00:55
+2025-03-04,Úterý,ROBOT 2K,CHIR,Nespecifikováno,07:45,12:25,08:50,12:00,09:50,11:50,01:05
+2025-03-04,Úterý,CHIR 1,CHIR,Nespecifikováno,09:50,10:45,10:15,10:28,,,00:25
+2025-03-04,Úterý,CHIR 1,CHIR,Nespecifikováno,11:45,13:40,12:25,13:30,,,00:40
+2025-03-04,Úterý,ROBOT 2K,CHIR,Nespecifikováno,12:35,14:33,12:50,14:20,,,00:15
+2025-03-05,Středa,ROBOT 1K,URO,Nespecifikováno,07:00,10:05,07:35,09:50,07:45,09:35,00:35
+2025-03-05,Středa,ROBOT 2K,CHIR,Nespecifikováno,07:45,10:35,08:15,10:20,08:45,10:15,00:30
+2025-03-05,Středa,ROBOT 2K,CHIR,Nespecifikováno,10:45,15:58,11:05,15:40,11:20,,00:20
+2025-03-05,Středa,ROBOT 1K,URO,Nespecifikováno,10:10,13:45,10:35,13:30,10:45,13:10,00:25
+2025-03-06,Čtvrtek,ROBOT 2K,CHIR,Nespecifikováno,07:30,13:07,08:40,12:55,08:50,12:40,01:10
+2025-03-06,Čtvrtek,ROBOT 1K,GYN,Nespecifikováno,08:23,10:15,08:30,10:05,08:55,09:55,00:07
+2025-03-06,Čtvrtek,ROBOT 1K,GYN,Nespecifikováno,10:18,12:25,10:35,12:10,10:50,11:15,00:17
+2025-03-06,Čtvrtek,ROBOT 2K,CHIR,Nespecifikováno,16:47,17:15,17:00,17:05,,,00:13
+2025-03-06,Čtvrtek,ROBOT 1K,GYN,Nespecifikováno,12:40,15:10,13:05,14:55,13:25,14:25,00:25
+2025-03-07,Pátek,ROBOT 2K,CHIR,Nespecifikováno,07:40,08:44,08:20,08:35,,,00:40
+2025-03-07,Pátek,ROBOT 2K,CHIR,Nespecifikováno,08:40,11:55,09:20,11:40,,,00:40
+2025-03-07,Pátek,ROBOT 2K,CHIR,Nespecifikováno,12:25,13:30,12:40,,,,00:15
+2025-03-07,Pátek,ROBOT 2K,CHIR,Nespecifikováno,12:15,13:10,12:30,13:00,,,00:15
+2025-03-07,Pátek,CHIR 1,CHIR,Nespecifikováno,16:35,17:37,16:50,17:20,,,00:15
+2025-03-07,Pátek,CHIR 1,CHIR,Nespecifikováno,18:04,19:37,18:10,19:20,,,00:06
+2025-03-10,Pondělí,ROBOT 2K,CHIR,Nespecifikováno,07:45,09:58,08:20,09:40,08:30,09:35,00:35
+2025-03-10,Pondělí,ROBOT 2K,CHIR,Nespecifikováno,10:00,16:59,10:26,16:41,10:46,16:08,00:26
+2025-03-10,Pondělí,ROBOT 1K,GYN,Nespecifikováno,10:20,11:51,10:45,11:35,10:55,11:30,00:25
+2025-03-10,Pondělí,ROBOT 1K,GYN,Nespecifikováno,12:10,13:47,12:30,13:35,12:45,13:30,00:20
+2025-03-11,Úterý,ROBOT 1K,URO,Nespecifikováno,07:29,09:45,07:55,09:25,08:10,08:28,00:26
+2025-03-11,Úterý,CHIR 1,CHIR,Nespecifikováno,07:45,10:25,08:55,10:10,,,01:10
+2025-03-11,Úterý,ROBOT 2K,CHIR,Nespecifikováno,07:45,14:25,08:40,14:15,08:55,13:35,00:55
+2025-03-11,Úterý,CHIR 1,CHIR,Nespecifikováno,10:30,11:55,11:00,11:30,,,00:30
+2025-03-11,Úterý,CHIR 1,CHIR,Nespecifikováno,12:05,12:41,12:20,12:35,,,00:15
+2025-03-11,Úterý,CHIR 1,CHIR,Nespecifikováno,13:40,14:35,14:15,14:25,,,00:35
+2025-03-11,Úterý,CHIR 1,CHIR,Nespecifikováno,13:01,13:43,13:20,13:30,,,00:19
+2025-03-12,Středa,ROBOT 1K,ORL,Nespecifikováno,08:49,10:13,09:08,10:05,,,00:19
+2025-03-12,Středa,ROBOT 2K,CHIR,Nespecifikováno,07:30,12:05,07:45,11:40,08:35,11:20,00:15
+2025-03-12,Středa,ROBOT 1K,ORL,Nespecifikováno,07:25,08:42,07:50,08:30,07:53,08:14,00:25
+2025-03-12,Středa,ROBOT 1K,ORL,Nespecifikováno,10:18,14:36,10:45,14:20,13:28,13:59,00:27
+2025-03-12,Středa,ROBOT 2K,CHIR,Nespecifikováno,12:08,14:50,12:25,14:35,12:38,14:25,00:17
+2025-03-12,Středa,CHIR 1,CHIR,Nespecifikováno,16:30,17:12,16:45,17:00,,,00:15
+2025-03-12,Středa,CHIR 1,CHIR,Nespecifikováno,17:35,18:14,17:50,18:05,,,00:15
+2025-03-13,Čtvrtek,ROBOT 2K,CHIR,Nespecifikováno,07:30,17:00,08:25,16:41,08:50,15:30,00:55
+2025-03-13,Čtvrtek,CHIR 1,CHIR,Nespecifikováno,08:21,10:37,08:45,10:15,,,00:24
+2025-03-13,Čtvrtek,ROBOT 1K,GYN,Nespecifikováno,08:16,10:38,08:40,10:15,08:55,10:10,00:24
+2025-03-13,Čtvrtek,CHIR 1,CHIR,Nespecifikováno,12:30,13:35,12:50,13:00,,,00:20
+2025-03-13,Čtvrtek,CHIR 1,CHIR,Nespecifikováno,10:49,12:24,11:05,11:55,,,00:16
+2025-03-13,Čtvrtek,ROBOT 1K,GYN,Nespecifikováno,10:43,13:12,11:00,13:00,11:15,12:50,00:17
+2025-03-13,Čtvrtek,ROBOT 2K,CHIR,Nespecifikováno,14:00,15:30,14:15,15:15,,,00:15
+2025-03-14,Pátek,ROBOT 1K,URO,Nespecifikováno,07:00,10:15,07:50,10:00,08:00,09:42,00:50
+2025-03-14,Pátek,ROBOT 2K,CHIR,Nespecifikováno,07:45,09:15,08:40,09:05,,,00:55
+2025-03-14,Pátek,ROBOT 2K,CHIR,Nespecifikováno,09:30,10:40,09:50,10:25,,,00:20
+2025-03-14,Pátek,ROBOT 1K,URO,Nespecifikováno,10:20,14:17,10:45,14:00,11:13,13:40,00:25
+2025-03-15,Sobota,CHIR 1,CHIR,Nespecifikováno,08:30,09:45,08:43,09:17,,,00:13
+2025-03-17,Pondělí,ROBOT 2K,CHIR,Nespecifikováno,07:45,09:20,08:30,09:09,,,00:45
+2025-03-17,Pondělí,ROBOT 1K,GYN,Nespecifikováno,08:20,12:04,08:45,11:00,08:55,10:55,00:25
+2025-03-17,Pondělí,ROBOT 1K,GYN,Nespecifikováno,12:15,14:31,12:24,14:15,12:35,14:10,00:09
+2025-03-17,Pondělí,ROBOT 2K,CHIR,Nespecifikováno,11:03,11:46,11:15,11:33,,,00:12
+2025-03-17,Pondělí,ROBOT 2K,CHIR,Nespecifikováno,10:10,10:57,10:30,10:45,,,00:20
+2025-03-17,Pondělí,ROBOT 2K,CHIR,Nespecifikováno,09:31,10:10,09:40,10:00,,,00:09
+2025-03-18,Úterý,ROBOT 1K,URO,Nespecifikováno,07:00,09:45,07:50,09:35,08:10,09:20,00:50
+2025-03-18,Úterý,ROBOT 2K,CHIR,Nespecifikováno,07:45,18:15,09:05,17:58,09:40,17:05,01:20
+2025-03-18,Úterý,CHIR 1,CHIR,Nespecifikováno,07:50,09:21,08:35,09:05,,,00:45
+2025-03-18,Úterý,CHIR 1,CHIR,Nespecifikováno,09:38,11:10,09:55,10:50,,,00:17
+2025-03-18,Úterý,ROBOT 1K,URO,Nespecifikováno,09:55,14:47,10:20,14:35,10:30,14:25,00:25
+2025-03-18,Úterý,CHIR 1,CHIR,Nespecifikováno,13:32,14:10,13:45,13:55,,,00:13
+2025-03-19,Středa,ROBOT 1K,URO,Nespecifikováno,07:30,12:05,07:50,11:55,08:20,11:38,00:20
+2025-03-19,Středa,ROBOT 2K,CHIR,Nespecifikováno,07:45,09:16,08:20,08:45,,,00:35
+2025-03-19,Středa,ROBOT 2K,CHIR,Nespecifikováno,09:25,15:15,09:45,15:00,10:10,13:48,00:20
+2025-03-19,Středa,ROBOT 1K,URO,Nespecifikováno,12:15,13:37,12:37,13:28,,,00:22
+2025-03-19,Středa,CHIR 1,CHIR,Nespecifikováno,17:55,20:00,18:20,19:30,,,00:25
+2025-03-20,Čtvrtek,ROBOT 2K,CHIR,Nespecifikováno,07:45,09:50,08:10,09:40,08:25,09:35,00:25
+2025-03-20,Čtvrtek,ROBOT 1K,GYN,Nespecifikováno,12:12,13:37,12:25,13:25,,,00:13
+2025-03-20,Čtvrtek,ROBOT 2K,CHIR,Nespecifikováno,09:55,12:17,10:15,12:05,10:30,11:55,00:20
+2025-03-20,Čtvrtek,ROBOT 2K,CHIR,Nespecifikováno,12:35,14:10,12:55,13:50,,,00:20
+2025-03-20,Čtvrtek,ROBOT 1K,GYN,Nespecifikováno,08:23,10:15,08:45,10:05,09:00,09:55,00:22
+2025-03-20,Čtvrtek,ROBOT 1K,GYN,Nespecifikováno,10:26,15:25,10:35,15:15,10:50,15:00,00:09
+2025-03-21,Pátek,ROBOT 1K,URO,Nespecifikováno,07:10,09:45,07:45,09:30,08:15,09:15,00:35
+2025-03-21,Pátek,ROBOT 2K,CHIR,Nespecifikováno,07:45,11:30,09:00,11:15,09:20,11:00,01:15
+2025-03-21,Pátek,ROBOT 2K,CHIR,Nespecifikováno,11:40,12:20,11:55,12:15,,,00:15
+2025-03-21,Pátek,ROBOT 2K,CHIR,Nespecifikováno,12:30,12:55,12:40,12:45,,,00:10
+2025-03-24,Pondělí,ROBOT 2K,CHIR,Nespecifikováno,07:45,12:02,09:00,11:35,10:05,11:30,01:15
+2025-03-24,Pondělí,ROBOT 1K,GYN,Nespecifikováno,14:05,15:35,14:20,15:15,14:30,15:10,00:15
+2025-03-24,Pondělí,ROBOT 2K,CHIR,Nespecifikováno,12:09,15:30,12:30,15:20,12:40,15:05,00:21
+2025-03-24,Pondělí,ROBOT 1K,GYN,Nespecifikováno,11:55,14:05,12:15,13:40,12:25,13:35,00:20
+2025-03-25,Úterý,ROBOT 1K,URO,Nespecifikováno,07:10,10:05,07:55,09:45,08:10,09:20,00:45
+2025-03-25,Úterý,ROBOT 2K,CHIR,Nespecifikováno,07:45,11:05,08:41,10:41,09:10,10:35,00:56
+2025-03-25,Úterý,ROBOT 1K,URO,Nespecifikováno,10:10,14:13,10:43,14:05,11:00,13:43,00:33
+2025-03-25,Úterý,CHIR 1,CHIR,Nespecifikováno,10:20,11:36,10:30,11:00,,,00:10
+2025-03-25,Úterý,CHIR 1,CHIR,Nespecifikováno,11:55,12:20,12:00,12:15,,,00:05
+2025-03-26,Středa,ROBOT 2K,ORL,Nespecifikováno,07:55,09:04,08:15,08:55,08:20,08:52,00:20
+2025-03-26,Středa,ROBOT 1K,CHIR,Nespecifikováno,07:45,12:40,08:45,12:30,09:05,11:25,01:00
+2025-03-26,Středa,ROBOT 2K,ORL,Nespecifikováno,09:15,11:02,09:30,10:41,09:34,10:40,00:15
+2025-03-26,Středa,ROBOT 2K,ORL,Nespecifikováno,11:08,12:09,11:17,11:50,11:27,11:48,00:09
+2025-03-26,Středa,ROBOT 1K,CHIR,Nespecifikováno,12:51,14:05,13:05,14:00,,,00:14
+2025-03-26,Středa,ROBOT 2K,ORL,Nespecifikováno,12:13,13:20,12:30,13:00,12:33,12:57,00:17
+2025-03-26,Středa,ROBOT 1K,CHIR,Nespecifikováno,14:15,14:40,14:25,14:30,,,00:10
+2025-03-27,Čtvrtek,ROBOT 1K,GYN,Nespecifikováno,08:24,10:30,08:45,10:20,09:00,10:10,00:21
+2025-03-27,Čtvrtek,ROBOT 2K,ORL,Nespecifikováno,10:07,15:03,10:26,14:45,10:34,12:07,00:19
+2025-03-27,Čtvrtek,ROBOT 1K,GYN,Nespecifikováno,10:35,11:50,10:55,11:35,11:10,11:25,00:20
+2025-03-27,Čtvrtek,ROBOT 2K,ORL,Nespecifikováno,09:17,10:05,09:28,09:51,09:33,09:49,00:11
+2025-03-27,Čtvrtek,ROBOT 2K,ORL,Nespecifikováno,07:40,09:11,07:56,08:54,07:58,08:41,00:16
+2025-03-28,Pátek,ROBOT 1K,URO,Nespecifikováno,07:00,10:23,07:50,10:05,08:10,09:50,00:50
+2025-03-28,Pátek,ROBOT 2K,CHIR,Nespecifikováno,07:45,12:37,08:35,12:15,08:55,11:45,00:50
+2025-03-28,Pátek,ROBOT 1K,URO,Nespecifikováno,10:30,13:40,10:55,13:10,11:05,12:55,00:25
+2025-03-28,Pátek,ROBOT 2K,CHIR,Nespecifikováno,12:45,15:05,13:00,14:40,,,00:15
+2025-03-31,Pondělí,ROBOT 1K,GYN,Nespecifikováno,08:00,10:00,08:45,09:40,09:05,09:35,00:45
+2025-03-31,Pondělí,ROBOT 2K,CHIR,Nespecifikováno,07:45,11:45,09:00,11:14,,,01:15
+2025-03-31,Pondělí,CHIR 1,CHIR,Nespecifikováno,17:25,18:44,17:50,18:25,,,00:25`;
+
+                // Analýza CSV dat
+                const operations = parseCSV(operationsCSV);
+                
+                // Zpracování dat pro vizualizaci
+                const processedOperations = operations.map(op => ({
+                    ...op,
+                    prijezdPacientaMinutes: parseTime(op['Příjezd pacienta']),
+                    odjezdPacientaMinutes: parseTime(op['Odjezd pacienta']),
+                    zacatekOperaceMinutes: parseTime(op['Začátek operace']),
+                    konecOperaceMinutes: parseTime(op['Konec operace']),
+                    robotZacatekMinutes: parseTime(op['Robot začátek']),
+                    robotKonecMinutes: parseTime(op['Robot konec'])
+                }));
+                
+                // Extrahujeme unikátní datumy
+                const dates = [...new Set(processedOperations.map(op => op.Datum))].sort();
+                
+                // Naplníme select pro výběr datumu
+                const dateSelect = document.getElementById('date-select');
+                dates.forEach(date => {
+                    const option = document.createElement('option');
+                    option.value = date;
+                    
+                    // Najdeme den v týdnu pro toto datum
+                    const dayOfWeek = operations.find(op => op.Datum === date)?.Den || '';
+                    option.textContent = `${date} (${dayOfWeek})`;
+                    
+                    dateSelect.appendChild(option);
+                });
+                
+                // Funkce pro aktualizaci vizualizace podle vybraného data
+                function updateVisualization() {
+                    const selectedDate = dateSelect.value;
+                    
+                    // Filtrujeme operace podle vybraného data
+                    const filteredOperations = selectedDate
+                        ? processedOperations.filter(op => op.Datum === selectedDate)
+                        : [];
+                    
+                    // Aktualizujeme nadpis časové osy
+                    const dayOfWeek = filteredOperations[0]?.Den || '';
+                    document.getElementById('timeline-title').textContent = `Časová osa pro ${selectedDate} (${dayOfWeek})`;
+                    
+                    // Seskupíme operace podle sálů
+                    const roomGroups = {};
+                    filteredOperations.forEach(op => {
+                        if (!roomGroups[op.Sál]) {
+                            roomGroups[op.Sál] = [];
+                        }
+                        roomGroups[op.Sál].push(op);
+                    });
+                    
+                    // Konstanty pro časovou osu
+                    const startHour = 7; // 7:00
+                    const endHour = 16; // 16:00 (15:30 + margin)
+                    const totalMinutes = (endHour - startHour) * 60;
+                    const timelineWidth = 1000; // px
+                    
+                    // Pomocná funkce pro převod minut na pozici v pixelech
+                    function minutesToPosition(minutes) {
+                        if (!minutes) return 0;
+                        const minutesFromStart = minutes - (startHour * 60);
+                        return (minutesFromStart / totalMinutes) * timelineWidth;
+                    }
+                    
+                    // Vykreslení časových značek
+                    const timelineHeader = document.getElementById('timeline-header');
+                    timelineHeader.innerHTML = '';
+                    
+                    for (let i = 0; i <= (endHour - startHour) * 2; i++) {
+                        const hour = Math.floor(i / 2) + startHour;
+                        const minute = (i % 2) * 30;
+                        const position = minutesToPosition(hour * 60 + minute);
+                        
+                        const timeMarker = document.createElement('div');
+                        timeMarker.className = 'timeline-mark';
+                        timeMarker.style.left = `${position}px`;
+                        timeMarker.textContent = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+                        
+                        timelineHeader.appendChild(timeMarker);
+                    }
+                    
+                    // Vykreslení časových os pro jednotlivé sály
+                    const roomTimelinesContainer = document.getElementById('room-timelines');
+                    roomTimelinesContainer.innerHTML = '';
+                    
+                    Object.entries(roomGroups).forEach(([room, roomOperations]) => {
+                        const roomSection = document.createElement('div');
+                        roomSection.className = 'room-timeline';
+                        
+                        const roomTitle = document.createElement('h3');
+                        roomTitle.textContent = room;
+                        roomSection.appendChild(roomTitle);
+                        
+                        const timelineContainer = document.createElement('div');
+                        timelineContainer.className = 'timeline-container';
+                        
+                        // Vykreslení operací
+                        roomOperations.forEach(op => {
+                            // Čas pobytu pacienta na sále
+                            const patientStartPosition = minutesToPosition(op.prijezdPacientaMinutes);
+                            const patientEndPosition = minutesToPosition(op.odjezdPacientaMinutes);
+                            const patientWidth = patientEndPosition - patientStartPosition;
+                            
+                            if (patientWidth > 0) {
+                                const patientStay = document.createElement('div');
+                                patientStay.className = 'operation patient-stay';
+                                patientStay.style.left = `${patientStartPosition}px`;
+                                patientStay.style.width = `${patientWidth}px`;
+                                patientStay.title = `Pacient: ${formatTime(op['Příjezd pacienta'])} - ${formatTime(op['Odjezd pacienta'])}`;
+                                timelineContainer.appendChild(patientStay);
+                            }
+                            
+                            // Čas samotné operace
+                            const opStartPosition = minutesToPosition(op.zacatekOperaceMinutes);
+                            const opEndPosition = minutesToPosition(op.konecOperaceMinutes);
+                            const opWidth = opEndPosition - opStartPosition;
+                            
+                            if (opWidth > 0) {
+                                const operationTime = document.createElement('div');
+                                operationTime.className = `operation operation-time operation-${op.Odbornost}`;
+                                operationTime.style.left = `${opStartPosition}px`;
+                                operationTime.style.width = `${opWidth}px`;
+                                operationTime.title = `${op.Odbornost}: ${formatTime(op['Začátek operace'])} - ${formatTime(op['Konec operace'])}`;
+                                
+                                const opLabel = document.createElement('span');
+                                opLabel.textContent = op.Odbornost;
+                                operationTime.appendChild(opLabel);
+                                
+                                timelineContainer.appendChild(operationTime);
+                            }
+                            
+                            // Čas využití robota
+                            const robotStartPosition = minutesToPosition(op.robotZacatekMinutes);
+                            const robotEndPosition = minutesToPosition(op.robotKonecMinutes);
+                            const robotWidth = robotEndPosition - robotStartPosition;
+                            
+                            if (robotWidth > 0) {
+                                const robotTime = document.createElement('div');
+                                robotTime.className = 'operation robot-time';
+                                robotTime.style.left = `${robotStartPosition}px`;
+                                robotTime.style.width = `${robotWidth}px`;
+                                robotTime.title = `Robot: ${formatTime(op['Robot začátek'])} - ${formatTime(op['Robot konec'])}`;
+                                timelineContainer.appendChild(robotTime);
+                            }
+                        });
+                        
+                        roomSection.appendChild(timelineContainer);
+                        roomTimelinesContainer.appendChild(roomSection);
+                    });
+                    
+                    // Naplníme tabulku operací
+                    const tableBody = document.getElementById('operations-table-body');
+                    tableBody.innerHTML = '';
+                    
+                    // Seřazení operací podle sálů a času začátku operace
+                    const sortedOperations = [...filteredOperations].sort((a, b) => {
+                        if (a.Sál !== b.Sál) return a.Sál.localeCompare(b.Sál);
+                        return a.zacatekOperaceMinutes - b.zacatekOperaceMinutes;
+                    });
+                    
+                    sortedOperations.forEach(op => {
+                        const row = document.createElement('tr');
+                        
+                        // Buňky tabulky
+                        const cells = [
+                            { value: op.Sál },
+                            { value: op.Odbornost },
+                            { value: formatTime(op['Příjezd pacienta']) },
+                            { value: formatTime(op['Začátek operace']) },
+                            { value: formatTime(op['Konec operace']) },
+                            { value: formatTime(op['Odjezd pacienta']) },
+                            { value: formatTime(op['Robot začátek']) },
+                            { value: formatTime(op['Robot konec']) },
+                            { value: op['Pauza před op.'] }
+                        ];
+                        
+                        cells.forEach(cell => {
+                            const td = document.createElement('td');
+                            td.textContent = cell.value || '';
+                            row.appendChild(td);
+                        });
+                        
+                        tableBody.appendChild(row);
+                    });
+                }
+                
+                // Přidáme posluchač událostí pro změnu vybraného data
+                dateSelect.addEventListener('change', updateVisualization);
+                
+                // Inicializujeme vizualizaci s prvním datem
+                if (dates.length > 0) {
+                    dateSelect.value = dates[0];
+                    updateVisualization();
+                }
+                
+                // Zobrazíme obsah a skryjeme načítání
+                loadingElement.style.display = 'none';
+                contentElement.style.display = 'block';
+                
+            } catch (err) {
+                console.error('Chyba při inicializaci aplikace:', err);
+                loadingElement.style.display = 'none';
+                errorElement.textContent = 'Chyba při načítání dat: ' + err.message;
+                errorElement.style.display = 'block';
+            }
+        }
+
+        // Inicializace aplikace po načtení stránky
+        document.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
